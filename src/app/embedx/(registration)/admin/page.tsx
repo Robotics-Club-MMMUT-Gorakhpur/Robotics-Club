@@ -43,6 +43,7 @@ interface RegistrationItem {
   paymentScreenshotPath: string;
   paymentStatus: "PENDING" | "VERIFIED" | "REJECTED";
   registrationStatus: "PENDING" | "CONFIRMED" | "REJECTED";
+  score: number;
   editLogs?: { timestamp: string; editedBy: string; changes: string }[];
   createdAt: string;
   updatedAt: string;
@@ -75,6 +76,9 @@ export default function AdminDashboardPage() {
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [loadingReceiptFor, setLoadingReceiptFor] = useState<string | null>(null);
   const [showActivityLogs, setShowActivityLogs] = useState<boolean>(false);
+  const [showScoredTeams, setShowScoredTeams] = useState<boolean>(false);
+  const [scoreEdits, setScoreEdits] = useState<Record<string, string>>({});
+  const [savingScoreFor, setSavingScoreFor] = useState<string | null>(null);
   const [allowParticipantEdits, setAllowParticipantEdits] = useState<boolean>(true);
   const [isTogglingEdits, setIsTogglingEdits] = useState<boolean>(false);
   const [registrationsClosed, setRegistrationsClosed] = useState<boolean>(false);
@@ -147,6 +151,41 @@ export default function AdminDashboardPage() {
     } finally {
       setIsTogglingRegistrations(false);
     }
+  };
+
+  // Scored teams: edit or clear a team's score (super admin only, enforced server-side too)
+  const saveScore = async (registrationId: string, newScore: number) => {
+    setSavingScoreFor(registrationId);
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    try {
+      const res = await fetch(`/api/embedx/admin/registrations/${registrationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-password": passkey },
+        body: JSON.stringify({ score: newScore }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRegistrations((prev) =>
+          prev.map((r) => (r.registrationId === registrationId ? { ...r, score: data.data.score } : r))
+        );
+        setScoreEdits((prev) => {
+          const next = { ...prev };
+          delete next[registrationId];
+          return next;
+        });
+      } else {
+        alert(data.error || "Failed to update score. Are you a Super Admin?");
+      }
+    } catch {
+      alert("Failed to update score.");
+    } finally {
+      setSavingScoreFor(null);
+    }
+  };
+
+  const clearScore = (registrationId: string) => {
+    if (!confirm("Clear this team's score back to 0? This cannot be undone.")) return;
+    saveScore(registrationId, 0);
   };
 
   // Fetch registrations
@@ -422,6 +461,13 @@ export default function AdminDashboardPage() {
             >
               <Clock size={14} />
               <span>Activity Logs</span>
+            </button>
+            <button
+              onClick={() => setShowScoredTeams(true)}
+              style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.4)", color: "#4ade80", padding: "0.5rem 1rem", borderRadius: "0.5rem", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+            >
+              <Trophy size={14} />
+              <span>Scored Teams</span>
             </button>
             <button
               onClick={toggleEdits}
@@ -872,6 +918,96 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                 ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showScoredTeams && (
+        <div
+          onClick={() => setShowScoredTeams(false)}
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(3,7,18,0.85)", backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card"
+            style={{ maxWidth: "640px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "1.5rem", background: "#0b1222", border: "1px solid rgba(34,197,94,0.4)" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h3 style={{ margin: 0, color: "#f8fafc", fontSize: "1.1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Trophy size={18} style={{ color: "#4ade80" }} /> Scored Teams
+              </h3>
+              <button onClick={() => setShowScoredTeams(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            {!isSuperAdmin && (
+              <div style={{ fontSize: "0.8125rem", color: "#fbbf24", background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: "0.5rem", padding: "0.6rem 0.875rem", marginBottom: "1rem" }}>
+                View-only — super admin access is required to edit or clear a score.
+              </div>
+            )}
+
+            <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.6rem", paddingRight: "0.5rem" }}>
+              {(() => {
+                const scored = registrations
+                  .filter((r) => (r.score ?? 0) > 0)
+                  .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+                if (scored.length === 0) {
+                  return <div style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>No teams have been scored yet.</div>;
+                }
+
+                return scored.map((r) => {
+                  const editValue = scoreEdits[r.registrationId];
+                  const isSaving = savingScoreFor === r.registrationId;
+                  return (
+                    <div key={r.registrationId} style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", background: "rgba(15,23,42,0.4)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: "0.5rem" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#e2e8f0" }}>{r.teamName}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>{r.registrationId}</div>
+                      </div>
+                      {isSuperAdmin ? (
+                        <>
+                          <input
+                            type="number"
+                            min={0}
+                            value={editValue ?? String(r.score)}
+                            onChange={(e) =>
+                              setScoreEdits((prev) => ({ ...prev, [r.registrationId]: e.target.value }))
+                            }
+                            className="form-input"
+                            style={{ width: "90px", padding: "0.4rem 0.6rem", fontSize: "0.85rem" }}
+                          />
+                          <button
+                            onClick={() => saveScore(r.registrationId, Number(editValue ?? r.score))}
+                            disabled={isSaving}
+                            style={{ background: "rgba(0,240,255,0.1)", border: "1px solid rgba(0,240,255,0.3)", color: "#00f0ff", padding: "0.4rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.78rem", fontWeight: 600, cursor: isSaving ? "wait" : "pointer" }}
+                          >
+                            {isSaving ? "..." : "Save"}
+                          </button>
+                          <button
+                            onClick={() => clearScore(r.registrationId)}
+                            disabled={isSaving}
+                            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", padding: "0.4rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.78rem", fontWeight: 600, cursor: isSaving ? "wait" : "pointer" }}
+                          >
+                            Clear
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "1rem", fontWeight: 700, color: "#4ade80", fontFamily: "monospace", minWidth: "60px", textAlign: "right" }}>
+                          {r.score}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
               })()}
             </div>
           </div>

@@ -85,31 +85,52 @@ export async function PATCH(
   try {
     const { registrationId } = await params;
     const body = await request.json();
-    const { teamName, memberCount } = body;
+    const { teamName, memberCount, score } = body;
 
     const { updateRegistrationDetails, getRegistrationByRegistrationId } = await import("@/lib/db");
-    
+
     const oldReg = await getRegistrationByRegistrationId(registrationId);
     if (!oldReg) {
       return NextResponse.json({ success: false, error: "Registration not found." }, { status: 404 });
     }
 
+    let numericScore: number | undefined;
+    if (score !== undefined) {
+      numericScore = Number(score);
+      if (!Number.isFinite(numericScore) || numericScore < 0) {
+        return NextResponse.json({ success: false, error: "Score must be a non-negative number." }, { status: 400 });
+      }
+    }
+
     const diffs = [];
     if (teamName !== undefined && oldReg.teamName !== teamName) diffs.push(`Team Name ("${oldReg.teamName}" -> "${teamName}")`);
     if (memberCount !== undefined && oldReg.memberCount !== memberCount) diffs.push(`Member Count (${oldReg.memberCount} -> ${memberCount})`);
-    
+    if (numericScore !== undefined && oldReg.score !== numericScore) diffs.push(`Score (${oldReg.score} -> ${numericScore})`);
+
     if (diffs.length === 0) {
        return NextResponse.json({ success: true, data: oldReg });
     }
 
     const updated = await updateRegistrationDetails(
       registrationId,
-      { 
-        ...(teamName !== undefined && { teamName }), 
-        ...(memberCount !== undefined && { memberCount }) 
+      {
+        ...(teamName !== undefined && { teamName }),
+        ...(memberCount !== undefined && { memberCount }),
+        ...(numericScore !== undefined && { score: numericScore }),
       },
       { editedBy: "ADMIN", changes: `Admin updated: ${diffs.join(", ")}` }
     );
+
+    // Score-only updates (e.g. the Scored Teams list) don't need the full record --
+    // in particular, avoid shipping the base64 payment screenshot back down just to
+    // confirm a score change. Full-record edits (team name / member count) still get
+    // the complete object so the detail page can refresh its own view.
+    if (teamName === undefined && memberCount === undefined) {
+      return NextResponse.json({
+        success: true,
+        data: { registrationId: updated!.registrationId, teamName: updated!.teamName, score: updated!.score },
+      });
+    }
 
     return NextResponse.json({ success: true, data: updated });
   } catch (err: any) {
