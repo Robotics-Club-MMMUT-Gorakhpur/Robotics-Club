@@ -23,6 +23,7 @@ import {
   X,
   ArrowRight,
   Trophy,
+  Gavel,
 } from "lucide-react";
 
 interface RegistrationItem {
@@ -406,6 +407,14 @@ export default function AdminDashboardPage() {
             >
               <Trophy size={14} />
               <span>Leaderboard</span>
+            </Link>
+            <Link
+              href="/embedx/judge"
+              target="_blank"
+              style={{ background: "rgba(0,240,255,0.1)", border: "1px solid rgba(0,240,255,0.3)", color: "#00f0ff", padding: "0.5rem 1rem", borderRadius: "0.5rem", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.4rem", textDecoration: "none" }}
+            >
+              <Gavel size={14} />
+              <span>Judge Panel</span>
             </Link>
             <button
               onClick={() => setShowActivityLogs(true)}
