@@ -14,7 +14,7 @@ export default function EmbedxPage() {
   const bannerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('About');
-  const tabs = ['About', 'Structure', 'Timeline', 'Rules', 'Components', 'Contact'];
+  const tabs = ['About', 'Structure', 'Timeline', 'Problem Statements', 'Rules', 'Components', 'Contact'];
 
   const handleContainerScroll = () => {
     if (!containerRef.current) return;
@@ -161,7 +161,7 @@ export default function EmbedxPage() {
                 </button>
 
                 <button
-                  onClick={() => scrollToSection('Rules')}
+                  onClick={() => scrollToSection('Problem Statements')}
                   className="relative overflow-hidden group bg-transparent border border-neutral-600 hover:border-white text-neutral-300 hover:text-white w-full sm:w-auto px-6 md:px-8 py-3.5 rounded-lg font-bold tracking-widest uppercase text-[11px] md:text-[12px] transition-all duration-300 hover:bg-white/5"
                 >
                   <span className="relative z-10 flex items-center justify-center">
@@ -344,6 +344,87 @@ export default function EmbedxPage() {
                     timestampPosition="inline"
                     variant="spacious"
                   />
+              </div>
+            </div>
+
+            {/* PROBLEM STATEMENTS */}
+            <div id="section-Problem Statements">
+              <h2 className="text-2xl font-bold text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)] font-['Space_Grotesk'] uppercase tracking-widest mb-6 flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-blue-500 rounded-sm"></span>
+                Problem Statements
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  {
+                    id: "PS1",
+                    title: "The Unattended Bag",
+                    theme: "Security and Anti-Theft",
+                    description: "Students leave bags unattended in libraries and canteens, and theft happens in seconds. Build a low-cost way for a bag to know it's being tampered with and make the owner aware, even from a distance.",
+                  },
+                  {
+                    id: "PS2",
+                    title: "The Laundry Panic",
+                    theme: "Smart Home and Weather Protection",
+                    description: "Clothes dry on hostel rooftops and balconies, and sudden rain ruins them while everyone is in class. Build something that protects the laundry without anyone being present.",
+                  },
+                  {
+                    id: "PS3",
+                    title: "Posture Police",
+                    theme: "Health and Wellness",
+                    description: "Students hunch over laptops for hours without noticing. Build a wearable or desk companion that notices bad habits and nudges the person without being annoying.",
+                  },
+                  {
+                    id: "PS4",
+                    title: "The Doorbell Nobody Can Hear",
+                    theme: "Accessibility and Inclusion",
+                    description: "People with hearing difficulty miss visitors at the door. Build an alert that doesn't rely on sound alone.",
+                  },
+                  {
+                    id: "PS5",
+                    title: "The Thirsty Plant",
+                    theme: "Smart Agriculture and Sustainability",
+                    description: "Hostel and balcony plants die from too much or too little water, depending on heat and sunlight. Build a caretaker that waters only when the plant actually needs it and shows the owner what conditions it has been through.",
+                  },
+                  {
+                    id: "PS6",
+                    title: "The Silent Leak",
+                    theme: "Home Safety",
+                    description: "Gas leaks and smoldering fires in kitchens and hostel rooms are often noticed too late, especially at night. Build a guardian that detects the hazard, acts on its own to reduce danger, and warns people nearby and far away. The hazard response must still trigger if the main controller hangs or crashes.",
+                  },
+                  {
+                    id: "PS7",
+                    title: "The Shelf That Slowly Tilts",
+                    theme: "Safety and Monitoring",
+                    description: "Equipment, ladders, and shelves can tilt to a dangerous angle without anyone noticing. Build a system that alerts when the tilt crosses a safe limit.",
+                  },
+                  {
+                    id: "PS8",
+                    title: "The Dustbin Nobody Wants to Touch",
+                    theme: "Hygiene and Cleanliness",
+                    description: "People avoid touching public dustbins, so waste ends up lying outside. Build a dustbin that opens without contact.",
+                  },
+                ].map((ps) => (
+                  <div
+                    key={ps.id}
+                    className="group relative bg-blue-900/10 border border-blue-500/20 rounded-lg p-4 hover:border-blue-500/50 hover:bg-blue-900/20 transition-all duration-300 overflow-hidden"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-blue-400/5 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative flex items-start justify-between gap-3 mb-2">
+                      <h3 className="text-white font-bold font-['Space_Grotesk'] text-base tracking-wide">
+                        {ps.title}
+                      </h3>
+                      <span className="flex-shrink-0 font-mono text-xs font-bold text-blue-400 bg-blue-500/10 border border-blue-500/30 rounded px-2 py-0.5">
+                        {ps.id}
+                      </span>
+                    </div>
+                    <div className="relative inline-block text-[10px] font-bold uppercase tracking-widest text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-full px-2.5 py-1 mb-3">
+                      {ps.theme}
+                    </div>
+                    <p className="relative text-sm text-neutral-300 leading-relaxed font-['Space_Grotesk']">
+                      {ps.description}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
 
