@@ -193,7 +193,7 @@ export default function EmbedxPage() {
               <button
                 key={tab}
                 onClick={() => scrollToSection(tab)}
-                className={`px-4 py-3 md:px-6 md:py-4 text-[11px] md:text-[13px] font-medium tracking-wide whitespace-nowrap transition-all duration-300 flex-1 min-w-[80px] md:min-w-[100px] text-center ${
+                className={`px-4 py-3 md:px-6 md:py-4 text-[11px] md:text-[13px] font-medium tracking-wide whitespace-nowrap transition-all duration-300 flex-shrink-0 text-center ${
                   activeTab === tab
                     ? 'text-white border-b-2 border-blue-500 bg-blue-500/10'
                     : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
@@ -319,26 +319,26 @@ export default function EmbedxPage() {
                         id: "0",
                         title: "Last Date of Registration",
                         timestamp: "Sep 20",
-                        status: "active",
+                        status: "completed",
                       },
                       {
                         id: "1",
                         title: "Hands-on Workshop",
                         timestamp: "Sep 26-27",
                         description: "Venue to be announced",
-                        status: "pending",
+                        status: "completed",
                       },
                       {
                         id: "2",
-                        title: "Problem Release and Kit Distribution",
-                        timestamp: "To be announced",
-                        status: "pending",
+                        title: "Problem Statements Released",
+                        timestamp: "Released",
+                        status: "completed",
                       },
                       {
                         id: "3",
                         title: "Presentation Day",
                         timestamp: "To be announced",
-                        status: "pending",
+                        status: "active",
                       },
                     ]}
                     timestampPosition="inline"
