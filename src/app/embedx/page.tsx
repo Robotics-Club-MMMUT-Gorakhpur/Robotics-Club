@@ -519,7 +519,6 @@ export default function EmbedxPage() {
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Buzzer</td><td className="px-4 py-2.5 text-center">1</td></tr>
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">LDR Sensor Module</td><td className="px-4 py-2.5 text-center">1</td></tr>
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Soil Moisture Sensor</td><td className="px-4 py-2.5 text-center">1</td></tr>
-                    <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Vibration Sensor</td><td className="px-4 py-2.5 text-center">1</td></tr>
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Tilt Sensor</td><td className="px-4 py-2.5 text-center">1</td></tr>
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Jumper Wires</td><td className="px-4 py-2.5 text-center">3 set</td></tr>
                     <tr className="hover:bg-blue-500/5 transition-colors"><td className="px-4 py-2.5">Resistor</td><td className="px-4 py-2.5 text-center">3</td></tr>
