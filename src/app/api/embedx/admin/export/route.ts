@@ -4,7 +4,7 @@ import { getAllRegistrations } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 function isAuthorized(request: NextRequest): boolean {
-  const readonlyPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const readonlyPassword = process.env.ADMIN_PASSWORD || "embedx_admin@2026";
   const superPassword = process.env.SUPER_ADMIN_PASS || "admin_rc@2026";
   const authHeader = request.headers.get("authorization") || "";
   const customHeader = request.headers.get("x-admin-password") || "";

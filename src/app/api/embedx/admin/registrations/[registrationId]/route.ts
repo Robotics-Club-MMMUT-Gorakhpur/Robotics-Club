@@ -85,7 +85,7 @@ export async function PATCH(
   try {
     const { registrationId } = await params;
     const body = await request.json();
-    const { teamName, memberCount, score } = body;
+    const { teamName, memberCount, score, finalScore } = body;
 
     const { updateRegistrationDetails, getRegistrationByRegistrationId } = await import("@/lib/db");
 
@@ -102,10 +102,19 @@ export async function PATCH(
       }
     }
 
+    let numericFinalScore: number | undefined;
+    if (finalScore !== undefined) {
+      numericFinalScore = Number(finalScore);
+      if (!Number.isFinite(numericFinalScore) || numericFinalScore < 0) {
+        return NextResponse.json({ success: false, error: "Final score must be a non-negative number." }, { status: 400 });
+      }
+    }
+
     const diffs = [];
     if (teamName !== undefined && oldReg.teamName !== teamName) diffs.push(`Team Name ("${oldReg.teamName}" -> "${teamName}")`);
     if (memberCount !== undefined && oldReg.memberCount !== memberCount) diffs.push(`Member Count (${oldReg.memberCount} -> ${memberCount})`);
     if (numericScore !== undefined && oldReg.score !== numericScore) diffs.push(`Score (${oldReg.score} -> ${numericScore})`);
+    if (numericFinalScore !== undefined && (oldReg.finalScore ?? 0) !== numericFinalScore) diffs.push(`Final Score (${oldReg.finalScore ?? 0} -> ${numericFinalScore})`);
 
     if (diffs.length === 0) {
        return NextResponse.json({ success: true, data: oldReg });
@@ -117,6 +126,7 @@ export async function PATCH(
         ...(teamName !== undefined && { teamName }),
         ...(memberCount !== undefined && { memberCount }),
         ...(numericScore !== undefined && { score: numericScore }),
+        ...(numericFinalScore !== undefined && { finalScore: numericFinalScore }),
       },
       { editedBy: "ADMIN", changes: `Admin updated: ${diffs.join(", ")}` }
     );
@@ -128,7 +138,12 @@ export async function PATCH(
     if (teamName === undefined && memberCount === undefined) {
       return NextResponse.json({
         success: true,
-        data: { registrationId: updated!.registrationId, teamName: updated!.teamName, score: updated!.score },
+        data: {
+          registrationId: updated!.registrationId,
+          teamName: updated!.teamName,
+          score: updated!.score,
+          finalScore: updated!.finalScore ?? 0,
+        },
       });
     }
 

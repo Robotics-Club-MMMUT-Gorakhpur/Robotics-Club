@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { password } = body;
 
-    const readonlyPassword = process.env.ADMIN_PASSWORD || "admin123";
+    const readonlyPassword = process.env.ADMIN_PASSWORD || "embedx_admin@2026";
     const superPassword = process.env.SUPER_ADMIN_PASS || "admin_rc@2026";
 
     if (!password || typeof password !== "string") {
