@@ -14,7 +14,7 @@ export default function EmbedxPage() {
   const bannerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState('About');
-  const tabs = ['About', 'Structure', 'Timeline', 'Problem Statements', 'Rules', 'Components', 'Contact'];
+  const tabs = ['About', 'Structure', 'Timeline', 'Problem Statements', 'Guidelines', 'Rules', 'Components', 'Contact'];
 
   const handleContainerScroll = () => {
     if (!containerRef.current) return;
@@ -425,6 +425,94 @@ export default function EmbedxPage() {
                     </p>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* GUIDELINES */}
+            <div id="section-Guidelines">
+              <h2 className="text-2xl font-bold text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)] font-['Space_Grotesk'] uppercase tracking-widest mb-6 flex items-center gap-3">
+                <span className="w-1.5 h-6 bg-blue-500 rounded-sm"></span>
+                Guidelines
+              </h2>
+              <div className="space-y-6">
+
+                {/* 1. Presentation Format */}
+                <div className="flex gap-3 text-sm leading-relaxed text-white font-['Space_Grotesk'] tracking-wide [text-shadow:0_0_10px_rgba(255,255,255,0.7)]">
+                  <span className="text-blue-500 font-bold mt-0.5">{'>'}</span>
+                  <div className="w-full">
+                    <strong className="text-white block mb-2 text-base">1. Presentation Format</strong>
+                    <ul className="list-disc pl-5 space-y-1.5 text-white/90">
+                      <li>Each team will get 5 minutes for presentation and 2 minutes for Q&amp;A.</li>
+                      <li>The hackathon may consist of multiple rounds of evaluation, depending on the number of participating teams and the judges&apos; assessment.</li>
+                      <li>All team members must be present during their team&apos;s presentation.</li>
+                      <li>All teams must have PowerPoint (PPT) Presentation ready.</li>
+                      <li>The PPT must cover the problem statement, proposed solution, hardware components, circuit/system architecture, working principle, implementation, applications, and future scope.</li>
+                      <li>Teams must report to the venue at least 30 minutes before their scheduled slot.</li>
+                      <li>Teams must strictly adhere to the allotted time. The organisers may stop a presentation if the time limit is exceeded.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 2. Project Demonstration */}
+                <div className="flex gap-3 text-sm leading-relaxed text-white font-['Space_Grotesk'] tracking-wide [text-shadow:0_0_10px_rgba(255,255,255,0.7)]">
+                  <span className="text-blue-500 font-bold mt-0.5">{'>'}</span>
+                  <div className="w-full">
+                    <strong className="text-white block mb-2 text-base">2. Project Demonstration</strong>
+                    <ul className="list-disc pl-5 space-y-1.5 text-white/90">
+                      <li>Every team must demonstrate their project physically, wherever applicable.</li>
+                      <li>The demonstration should clearly explain the working principle, functionality, and practical application of the project.</li>
+                      <li>Teams must bring all required hardware, components, power supplies, laptops, and other accessories.</li>
+                      <li>A video recording and PPT may be used as a backup in case prototype is not functional, but it will not replace the live demonstration unless approved by the judges.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 3. Presentation Content */}
+                <div className="flex gap-3 text-sm leading-relaxed text-white font-['Space_Grotesk'] tracking-wide [text-shadow:0_0_10px_rgba(255,255,255,0.7)]">
+                  <span className="text-blue-500 font-bold mt-0.5">{'>'}</span>
+                  <div className="w-full">
+                    <strong className="text-white block mb-2 text-base">3. Presentation Content</strong>
+                    <p className="mb-2 text-white/90">Teams should cover the following points:</p>
+                    <ol className="list-decimal pl-5 space-y-1.5 text-white/90">
+                      <li>Problem statement and motivation.</li>
+                      <li>Proposed solution and its real-world application.</li>
+                      <li>Hardware components and circuit/system architecture.</li>
+                      <li>Working principle and implementation.</li>
+                      <li>Live demonstration of the project (or through PPT or video if prototype is not functional).</li>
+                      <li>Challenges faced and how they were solved.</li>
+                      <li>Limitations and future improvements.</li>
+                    </ol>
+                  </div>
+                </div>
+
+                {/* 4. Judging and Evaluation */}
+                <div className="flex gap-3 text-sm leading-relaxed text-white font-['Space_Grotesk'] tracking-wide [text-shadow:0_0_10px_rgba(255,255,255,0.7)]">
+                  <span className="text-blue-500 font-bold mt-0.5">{'>'}</span>
+                  <div className="w-full">
+                    <strong className="text-white block mb-2 text-base">4. Judging and Evaluation</strong>
+                    <ul className="list-disc pl-5 space-y-1.5 text-white/90">
+                      <li>Judges&apos; decisions will be final.</li>
+                      <li>Teams must be able to explain their design choices, circuit connections, code, and implementation.</li>
+                      <li>A project will not receive full credit merely for having an attractive presentation; technical understanding and actual functionality matter.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* 5. Discipline & Disqualification */}
+                <div className="flex gap-3 text-sm leading-relaxed text-white font-['Space_Grotesk'] tracking-wide [text-shadow:0_0_10px_rgba(255,255,255,0.7)]">
+                  <span className="text-blue-500 font-bold mt-0.5">{'>'}</span>
+                  <div className="w-full">
+                    <strong className="text-white block mb-2 text-base">5. Discipline &amp; Disqualification</strong>
+                    <ul className="list-disc pl-5 space-y-1.5 text-white/90">
+                      <li>All participating teams must follow the event schedule and instructions issued by the organising committee.</li>
+                      <li>Cheating, tampering with other teams&apos; projects, misconduct, or unfair practices may result in disqualification.</li>
+                      <li>Teams are responsible for the safety and security of their equipment and must keep the venue clean.</li>
+                      <li>The organising committee is not responsible for unattended personal belongings.</li>
+                      <li>Any disputes or exceptional circumstances must be reported to the organising committee. Its decisions regarding event conduct and rule enforcement will be final.</li>
+                    </ul>
+                  </div>
+                </div>
+
               </div>
             </div>
 

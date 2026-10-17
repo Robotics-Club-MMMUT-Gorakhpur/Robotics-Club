@@ -24,6 +24,11 @@ import {
   ArrowRight,
   Trophy,
   Gavel,
+  Key,
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface RegistrationItem {
@@ -44,6 +49,8 @@ interface RegistrationItem {
   paymentStatus: "PENDING" | "VERIFIED" | "REJECTED";
   registrationStatus: "PENDING" | "CONFIRMED" | "REJECTED";
   score: number;
+  finalScore?: number;
+  isFinalist?: boolean;
   editLogs?: { timestamp: string; editedBy: string; changes: string }[];
   createdAt: string;
   updatedAt: string;
@@ -54,6 +61,14 @@ interface StatsData {
   pending: number;
   confirmed: number;
   rejected: number;
+}
+
+interface JudgePanelUI {
+  id: string;
+  panelName: string;
+  passkey: string;
+  judges: { name: string }[];
+  createdAt: string;
 }
 
 export default function AdminDashboardPage() {
@@ -83,6 +98,27 @@ export default function AdminDashboardPage() {
   const [isTogglingEdits, setIsTogglingEdits] = useState<boolean>(false);
   const [registrationsClosed, setRegistrationsClosed] = useState<boolean>(false);
   const [isTogglingRegistrations, setIsTogglingRegistrations] = useState<boolean>(false);
+  const [finalRoundActive, setFinalRoundActive] = useState<boolean>(false);
+  const [isTogglingFinalRound, setIsTogglingFinalRound] = useState<boolean>(false);
+  const [isLeaderboardHidden, setIsLeaderboardHidden] = useState<boolean>(false);
+  const [isTogglingLeaderboardHidden, setIsTogglingLeaderboardHidden] = useState<boolean>(false);
+  const [scoredTeamsTab, setScoredTeamsTab] = useState<"round1" | "final">("round1");
+  const [finalScoreEdits, setFinalScoreEdits] = useState<Record<string, string>>({});
+  const [savingFinalScoreFor, setSavingFinalScoreFor] = useState<string | null>(null);
+
+  // Judge Panels state (Super Admin)
+  const [showJudgePanels, setShowJudgePanels] = useState<boolean>(false);
+  const [judgePanels, setJudgePanels] = useState<JudgePanelUI[]>([]);
+  const [isLoadingPanels, setIsLoadingPanels] = useState<boolean>(false);
+  const [panelError, setPanelError] = useState<string>("");
+
+  const [newPanelName, setNewPanelName] = useState<string>("");
+  const [newPanelPasskey, setNewPanelPasskey] = useState<string>("");
+  const [newJudgesList, setNewJudgesList] = useState<string[]>([""]);
+  const [isCreatingPanel, setIsCreatingPanel] = useState<boolean>(false);
+  const [createPanelError, setCreatePanelError] = useState<string>("");
+  const [showPasskeys, setShowPasskeys] = useState<Record<string, boolean>>({});
+  const [copiedPasskey, setCopiedPasskey] = useState<string | null>(null);
 
   // Check saved passkey on mount
   useEffect(() => {
@@ -103,6 +139,8 @@ export default function AdminDashboardPage() {
       if (data.success && data.settings) {
         setAllowParticipantEdits(data.settings.allowParticipantEdits !== false); // default true if undefined
         setRegistrationsClosed(data.settings.registrationsClosed === true); // default false if undefined
+        setFinalRoundActive(data.settings.finalRoundActive === true);
+        setIsLeaderboardHidden(data.settings.leaderboard_hidden === true);
       }
     } catch (err) {
       console.error("Failed to fetch settings", err);
@@ -153,7 +191,84 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // Scored teams: edit or clear a team's score (super admin only, enforced server-side too)
+  const toggleFinalRound = async () => {
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    setIsTogglingFinalRound(true);
+    try {
+      const res = await fetch("/api/embedx/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": passkey },
+        body: JSON.stringify({ key: "finalRoundActive", value: !finalRoundActive }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFinalRoundActive(!finalRoundActive);
+        fetchRegistrations();
+      } else {
+        alert(data.error || "Failed to update setting. Are you a Super Admin?");
+      }
+    } catch {
+      alert("Failed to update setting.");
+    } finally {
+      setIsTogglingFinalRound(false);
+    }
+  };
+
+  const toggleLeaderboardHidden = async () => {
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    setIsTogglingLeaderboardHidden(true);
+    try {
+      const res = await fetch("/api/embedx/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": passkey },
+        body: JSON.stringify({ key: "leaderboard_hidden", value: !isLeaderboardHidden }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsLeaderboardHidden(!isLeaderboardHidden);
+      } else {
+        alert(data.error || "Failed to update setting. Are you a Super Admin?");
+      }
+    } catch {
+      alert("Failed to update setting.");
+    } finally {
+      setIsTogglingLeaderboardHidden(false);
+    }
+  };
+
+  const saveFinalScore = async (registrationId: string, newFinalScore: number) => {
+    setSavingFinalScoreFor(registrationId);
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    try {
+      const res = await fetch(`/api/embedx/admin/registrations/${registrationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-password": passkey },
+        body: JSON.stringify({ finalScore: newFinalScore }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRegistrations((prev) =>
+          prev.map((r) => (r.registrationId === registrationId ? { ...r, finalScore: data.data.finalScore } : r))
+        );
+        setFinalScoreEdits((prev) => {
+          const next = { ...prev };
+          delete next[registrationId];
+          return next;
+        });
+      } else {
+        alert(data.error || "Failed to update final score. Are you a Super Admin?");
+      }
+    } catch {
+      alert("Failed to update final score.");
+    } finally {
+      setSavingFinalScoreFor(null);
+    }
+  };
+
+  const clearFinalScore = (registrationId: string) => {
+    if (!confirm("Clear this finalist's final score back to 0? This cannot be undone.")) return;
+    saveFinalScore(registrationId, 0);
+  };
   const saveScore = async (registrationId: string, newScore: number) => {
     setSavingScoreFor(registrationId);
     const passkey = localStorage.getItem("embedx_admin_passkey") || "";
@@ -186,6 +301,114 @@ export default function AdminDashboardPage() {
   const clearScore = (registrationId: string) => {
     if (!confirm("Clear this team's score back to 0? This cannot be undone.")) return;
     saveScore(registrationId, 0);
+  };
+
+  // Judge Panels handlers (Super Admin)
+  const fetchJudgePanels = useCallback(async () => {
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    setIsLoadingPanels(true);
+    setPanelError("");
+    try {
+      const res = await fetch("/api/embedx/admin/judge-panels", {
+        headers: { "x-admin-password": passkey },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setJudgePanels(data.data || []);
+      } else {
+        setPanelError(data.error || "Failed to load judge panels.");
+      }
+    } catch {
+      setPanelError("Network error while loading judge panels.");
+    } finally {
+      setIsLoadingPanels(false);
+    }
+  }, []);
+
+  const handleCreatePanel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPanelName.trim()) {
+      setCreatePanelError("Please provide a panel name.");
+      return;
+    }
+    if (!newPanelPasskey.trim()) {
+      setCreatePanelError("Please provide a passkey.");
+      return;
+    }
+
+    const validJudges = newJudgesList.map((n) => n.trim()).filter((n) => n.length > 0);
+
+    setIsCreatingPanel(true);
+    setCreatePanelError("");
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+
+    try {
+      const res = await fetch("/api/embedx/admin/judge-panels", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": passkey,
+        },
+        body: JSON.stringify({
+          panelName: newPanelName.trim(),
+          passkey: newPanelPasskey.trim(),
+          judges: validJudges.map((name) => ({ name })),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setNewPanelName("");
+        setNewPanelPasskey("");
+        setNewJudgesList([""]);
+        fetchJudgePanels();
+      } else {
+        setCreatePanelError(data.error || "Failed to create panel.");
+      }
+    } catch {
+      setCreatePanelError("Error connecting to server.");
+    } finally {
+      setIsCreatingPanel(false);
+    }
+  };
+
+  const handleDeletePanel = async (id: string, name: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete panel "${name}"? Judges using this passkey will no longer be able to log in.`
+      )
+    ) {
+      return;
+    }
+
+    const passkey = localStorage.getItem("embedx_admin_passkey") || "";
+    try {
+      const res = await fetch(`/api/embedx/admin/judge-panels?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { "x-admin-password": passkey },
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchJudgePanels();
+      } else {
+        alert(data.error || "Failed to delete panel.");
+      }
+    } catch {
+      alert("Network error while deleting panel.");
+    }
+  };
+
+  const generateSuggestedPasskey = () => {
+    const prefix =
+      (newPanelName.trim().replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "panel").slice(0, 8);
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    setNewPanelPasskey(`${prefix}_judge@${rand}`);
+  };
+
+  const handleCopyPasskey = (passkey: string, id: string) => {
+    navigator.clipboard.writeText(passkey);
+    setCopiedPasskey(id);
+    setTimeout(() => setCopiedPasskey(null), 2000);
   };
 
   // Fetch registrations
@@ -455,6 +678,85 @@ export default function AdminDashboardPage() {
               <Gavel size={14} />
               <span>Judge Panel</span>
             </Link>
+            {isSuperAdmin && (
+              <>
+                <button
+                  onClick={() => {
+                    setShowJudgePanels(true);
+                    fetchJudgePanels();
+                  }}
+                  style={{ background: "rgba(0,240,255,0.15)", border: "1px solid rgba(0,240,255,0.4)", color: "#00f0ff", padding: "0.5rem 1rem", borderRadius: "0.5rem", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
+                >
+                  <Key size={14} />
+                  <span>Panels</span>
+                </button>
+                <button
+                  onClick={toggleFinalRound}
+                  disabled={isTogglingFinalRound}
+                  style={{
+                    background: finalRoundActive ? "rgba(234,179,8,0.2)" : "rgba(255,255,255,0.06)",
+                    border: `1px solid ${finalRoundActive ? "rgba(234,179,8,0.5)" : "rgba(255,255,255,0.15)"}`,
+                    color: finalRoundActive ? "#fbbf24" : "#94a3b8",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                  title="Toggle Final Round Top 20 Leaderboard"
+                >
+                  <div
+                    style={{
+                      width: "24px",
+                      height: "14px",
+                      background: finalRoundActive ? "#fbbf24" : "rgba(255,255,255,0.2)",
+                      borderRadius: "12px",
+                      position: "relative",
+                      transition: "all 0.3s",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        background: "#fff",
+                        borderRadius: "50%",
+                        position: "absolute",
+                        top: "2px",
+                        left: finalRoundActive ? "12px" : "2px",
+                        transition: "all 0.3s",
+                      }}
+                    />
+                  </div>
+                  <span>{finalRoundActive ? "Final Round ON" : "Final Round OFF"}</span>
+                </button>
+                <button
+                  onClick={toggleLeaderboardHidden}
+                  disabled={isTogglingLeaderboardHidden}
+                  style={{
+                    background: isLeaderboardHidden ? "rgba(239,68,68,0.2)" : "rgba(34,197,94,0.15)",
+                    border: `1px solid ${isLeaderboardHidden ? "rgba(239,68,68,0.5)" : "rgba(34,197,94,0.4)"}`,
+                    color: isLeaderboardHidden ? "#f87171" : "#4ade80",
+                    padding: "0.5rem 1rem",
+                    borderRadius: "0.5rem",
+                    cursor: isTogglingLeaderboardHidden ? "wait" : "pointer",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    opacity: isTogglingLeaderboardHidden ? 0.7 : 1,
+                  }}
+                  title={isLeaderboardHidden ? "Public Leaderboards are HIDDEN (Click to show)" : "Public Leaderboards are LIVE (Click to hide)"}
+                >
+                  {isLeaderboardHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                  <span>{isLeaderboardHidden ? "Leaderboard Hidden" : "Leaderboard Live"}</span>
+                </button>
+              </>
+            )}
             <button
               onClick={() => setShowActivityLogs(true)}
               style={{ background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.4)", color: "#c084fc", padding: "0.5rem 1rem", borderRadius: "0.5rem", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}
@@ -535,6 +837,66 @@ export default function AdminDashboardPage() {
             );
           })}
         </div>
+
+        {/* Super Admin Quick Access: Judge Panels */}
+        {isSuperAdmin && (
+          <div
+            style={{
+              background: "rgba(0,240,255,0.06)",
+              border: "1px solid rgba(0,240,255,0.25)",
+              borderRadius: "0.75rem",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.5rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  background: "rgba(0,240,255,0.15)",
+                  border: "1px solid rgba(0,240,255,0.35)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Key size={18} style={{ color: "#00f0ff" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#f8fafc" }}>
+                  Judge Panels &amp; Passkeys Management
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
+                  Create dedicated panel passkeys and assign any number of judges to evaluate teams on the Judge Portal.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowJudgePanels(true);
+                fetchJudgePanels();
+              }}
+              className="btn-primary"
+              style={{
+                fontSize: "0.825rem",
+                padding: "0.5rem 1rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+              }}
+            >
+              <Key size={14} />
+              <span>Manage Panels</span>
+            </button>
+          </div>
+        )}
 
         {/* Filters and Search Bar */}
         <div className="glass-card" style={{ padding: "1.25rem", marginBottom: "1.5rem", display: "flex", flexWrap: "wrap", gap: "1rem", justifyContent: "space-between", alignItems: "center" }}>
@@ -954,8 +1316,107 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
+            {finalRoundActive && (
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                <button
+                  onClick={() => setScoredTeamsTab("round1")}
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem",
+                    borderRadius: "0.375rem",
+                    border: `1px solid ${scoredTeamsTab === "round1" ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
+                    background: scoredTeamsTab === "round1" ? "rgba(56,189,248,0.15)" : "transparent",
+                    color: scoredTeamsTab === "round1" ? "#38bdf8" : "#94a3b8",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Preliminary Scores
+                </button>
+                <button
+                  onClick={() => setScoredTeamsTab("final")}
+                  style={{
+                    flex: 1,
+                    padding: "0.5rem",
+                    borderRadius: "0.375rem",
+                    border: `1px solid ${scoredTeamsTab === "final" ? "#fbbf24" : "rgba(255,255,255,0.1)"}`,
+                    background: scoredTeamsTab === "final" ? "rgba(251,191,36,0.15)" : "transparent",
+                    color: scoredTeamsTab === "final" ? "#fbbf24" : "#94a3b8",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Final Round (Top 20)
+                </button>
+              </div>
+            )}
+
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.6rem", paddingRight: "0.5rem" }}>
               {(() => {
+                if (scoredTeamsTab === "final") {
+                  const preliminarySorted = [...registrations]
+                    .filter((r) => r.paymentStatus === "VERIFIED" || r.registrationStatus === "CONFIRMED" || (r.score ?? 0) > 0)
+                    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.teamName.localeCompare(b.teamName));
+                  const finalists = preliminarySorted.slice(0, 20);
+
+                  if (finalists.length === 0) {
+                    return <div style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>No finalists found.</div>;
+                  }
+
+                  return finalists.map((r, idx) => {
+                    const currentScore = r.finalScore ?? 0;
+                    const editValue = finalScoreEdits[r.registrationId];
+                    const isSaving = savingFinalScoreFor === r.registrationId;
+                    return (
+                      <div key={r.registrationId} style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem", background: "rgba(15,23,42,0.4)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "0.5rem" }}>
+                        <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: "0.85rem", width: "24px" }}>
+                          #{idx + 1}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#e2e8f0" }}>{r.teamName}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#64748b", fontFamily: "monospace" }}>
+                            {r.registrationId} &middot; Round 1: {r.score} PTS
+                          </div>
+                        </div>
+                        {isSuperAdmin ? (
+                          <>
+                            <input
+                              type="number"
+                              min={0}
+                              value={editValue ?? String(currentScore)}
+                              onChange={(e) =>
+                                setFinalScoreEdits((prev) => ({ ...prev, [r.registrationId]: e.target.value }))
+                              }
+                              className="form-input"
+                              style={{ width: "90px", padding: "0.4rem 0.6rem", fontSize: "0.85rem" }}
+                            />
+                            <button
+                              onClick={() => saveFinalScore(r.registrationId, Number(editValue ?? currentScore))}
+                              disabled={isSaving}
+                              style={{ background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.4)", color: "#fbbf24", padding: "0.4rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.78rem", fontWeight: 600, cursor: isSaving ? "wait" : "pointer" }}
+                            >
+                              {isSaving ? "..." : "Save"}
+                            </button>
+                            <button
+                              onClick={() => clearFinalScore(r.registrationId)}
+                              disabled={isSaving}
+                              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", padding: "0.4rem 0.75rem", borderRadius: "0.375rem", fontSize: "0.78rem", fontWeight: 600, cursor: isSaving ? "wait" : "pointer" }}
+                            >
+                              Clear
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: "1rem", fontWeight: 700, color: "#fbbf24", fontFamily: "monospace", minWidth: "60px", textAlign: "right" }}>
+                            {currentScore} PTS
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                }
+
                 const scored = registrations
                   .filter((r) => (r.score ?? 0) > 0)
                   .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
@@ -1009,6 +1470,270 @@ export default function AdminDashboardPage() {
                   );
                 });
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showJudgePanels && (
+        <div
+          onClick={() => setShowJudgePanels(false)}
+          style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(3,7,18,0.85)", backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card"
+            style={{ maxWidth: "750px", width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", padding: "1.75rem", background: "#0b1222", border: "1px solid rgba(0,240,255,0.4)" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", paddingBottom: "0.75rem", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <h3 style={{ margin: 0, color: "#f8fafc", fontSize: "1.2rem", display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700 }}>
+                <Gavel size={20} style={{ color: "#00f0ff" }} /> Panels
+              </h3>
+              <button onClick={() => setShowJudgePanels(false)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: "0.5rem" }}>
+              {/* Form to create a panel */}
+              <div style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(0,240,255,0.2)", borderRadius: "0.75rem", padding: "1.25rem", marginBottom: "1.5rem" }}>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Plus size={16} style={{ color: "#00f0ff" }} /> Create New Judge Panel
+                </div>
+
+                <form onSubmit={handleCreatePanel}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "0.4rem" }}>
+                        Panel Name *
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Hardware Panel 1"
+                        value={newPanelName}
+                        onChange={(e) => setNewPanelName(e.target.value)}
+                        className="form-input"
+                        style={{ width: "100%", padding: "0.6rem 0.8rem", fontSize: "0.85rem" }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Panel Passkey *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={generateSuggestedPasskey}
+                          style={{ background: "none", border: "none", color: "#38bdf8", fontSize: "0.72rem", cursor: "pointer", textDecoration: "underline" }}
+                        >
+                          Generate
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. panel1_judge@2026"
+                        value={newPanelPasskey}
+                        onChange={(e) => setNewPanelPasskey(e.target.value)}
+                        className="form-input"
+                        style={{ width: "100%", padding: "0.6rem 0.8rem", fontSize: "0.85rem", fontFamily: "monospace" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dynamic Judges List */}
+                  <div style={{ marginBottom: "1rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <label style={{ fontSize: "0.75rem", fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        Panel Judges Details (Add any number of judges)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setNewJudgesList((prev) => [...prev, ""])}
+                        style={{ background: "rgba(0,240,255,0.1)", border: "1px solid rgba(0,240,255,0.3)", color: "#00f0ff", padding: "0.25rem 0.6rem", borderRadius: "0.375rem", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                      >
+                        <Plus size={12} /> Add Judge
+                      </button>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                      {newJudgesList.map((judgeName, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b", width: "22px", textAlign: "right" }}>
+                            {idx + 1}.
+                          </span>
+                          <input
+                            type="text"
+                            placeholder={`Judge ${idx + 1} Name (e.g. Dr. A. K. Sharma)`}
+                            value={judgeName}
+                            onChange={(e) => {
+                              const updated = [...newJudgesList];
+                              updated[idx] = e.target.value;
+                              setNewJudgesList(updated);
+                            }}
+                            className="form-input"
+                            style={{ flex: 1, padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                          />
+                          {newJudgesList.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewJudgesList(newJudgesList.filter((_, i) => i !== idx));
+                              }}
+                              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", padding: "0.5rem", borderRadius: "0.375rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                              title="Remove Judge"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {createPanelError && (
+                    <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <AlertTriangle size={14} /> {createPanelError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isCreatingPanel}
+                    className="btn-primary"
+                    style={{ padding: "0.6rem 1.25rem", fontSize: "0.85rem", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
+                  >
+                    <Plus size={14} />
+                    <span>{isCreatingPanel ? "Creating Panel..." : "Create Panel"}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* List of existing panels */}
+              <div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#e2e8f0", marginBottom: "0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>Existing Panels ({judgePanels.length})</span>
+                  <button
+                    onClick={fetchJudgePanels}
+                    style={{ background: "none", border: "none", color: "#38bdf8", fontSize: "0.78rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                  >
+                    <RefreshCw size={12} className={isLoadingPanels ? "animate-spin" : ""} /> Refresh
+                  </button>
+                </div>
+
+                {panelError && (
+                  <div style={{ color: "#ef4444", fontSize: "0.82rem", marginBottom: "0.75rem" }}>
+                    {panelError}
+                  </div>
+                )}
+
+                {isLoadingPanels ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#64748b" }}>
+                    Loading panels...
+                  </div>
+                ) : judgePanels.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#64748b", background: "rgba(15,23,42,0.4)", borderRadius: "0.5rem", border: "1px dashed rgba(255,255,255,0.1)" }}>
+                    No judge panels created yet. Use the form above to add your first panel!
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {judgePanels.map((panel) => {
+                      const isRevealed = showPasskeys[panel.id];
+                      return (
+                        <div
+                          key={panel.id}
+                          style={{
+                            background: "rgba(15,23,42,0.6)",
+                            border: "1px solid rgba(255,255,255,0.08)",
+                            borderRadius: "0.5rem",
+                            padding: "1rem",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.6rem",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                            <div>
+                              <div style={{ fontSize: "1rem", fontWeight: 700, color: "#f0f6ff" }}>
+                                {panel.panelName}
+                              </div>
+                              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.15rem" }}>
+                                Created: {new Date(panel.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleDeletePanel(panel.id, panel.panelName)}
+                              style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", padding: "0.35rem 0.65rem", borderRadius: "0.375rem", fontSize: "0.75rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+
+                          {/* Passkey bar */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(0,0,0,0.3)", padding: "0.4rem 0.6rem", borderRadius: "0.375rem", border: "1px solid rgba(0,240,255,0.15)" }}>
+                            <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Passkey:</span>
+                            <span style={{ fontFamily: "monospace", fontSize: "0.85rem", color: "#38bdf8", flex: 1 }}>
+                              {isRevealed ? panel.passkey : "••••••••••••"}
+                            </span>
+                            <button
+                              onClick={() =>
+                                setShowPasskeys((prev) => ({ ...prev, [panel.id]: !prev[panel.id] }))
+                              }
+                              style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
+                              title={isRevealed ? "Hide Passkey" : "Show Passkey"}
+                            >
+                              {isRevealed ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                            <button
+                              onClick={() => handleCopyPasskey(panel.passkey, panel.id)}
+                              style={{ background: "none", border: "none", color: copiedPasskey === panel.id ? "#4ade80" : "#94a3b8", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.72rem" }}
+                              title="Copy Passkey"
+                            >
+                              {copiedPasskey === panel.id ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                          </div>
+
+                          {/* Judges list */}
+                          <div>
+                            <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.3rem", fontWeight: 600 }}>
+                              Assigned Judges ({panel.judges.length}):
+                            </div>
+                            {panel.judges.length === 0 ? (
+                              <div style={{ fontSize: "0.78rem", color: "#64748b", fontStyle: "italic" }}>
+                                No judges named for this panel yet.
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                                {panel.judges.map((j, jIdx) => (
+                                  <span
+                                    key={jIdx}
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      background: "rgba(56,189,248,0.1)",
+                                      border: "1px solid rgba(56,189,248,0.25)",
+                                      color: "#38bdf8",
+                                      padding: "0.15rem 0.5rem",
+                                      borderRadius: "1rem",
+                                    }}
+                                  >
+                                    {j.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

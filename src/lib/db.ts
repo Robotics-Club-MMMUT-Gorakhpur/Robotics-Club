@@ -15,6 +15,14 @@ export interface EditLog {
   changes: string;
 }
 
+export interface ScoreBreakdown {
+  ppt: number;
+  presentation: number;
+  prototype: number;
+  simulation: number;
+  qa: number;
+}
+
 export interface RegistrationRecord {
   id: string;
   registrationId: string;
@@ -33,6 +41,10 @@ export interface RegistrationRecord {
   paymentStatus: "PENDING" | "VERIFIED" | "REJECTED";
   registrationStatus: "PENDING" | "CONFIRMED" | "REJECTED";
   score: number;
+  scoreBreakdown?: ScoreBreakdown;
+  finalScore?: number;
+  finalScoreBreakdown?: ScoreBreakdown;
+  isFinalist?: boolean;
   editLogs?: EditLog[];
   createdAt: string;
   updatedAt: string;
@@ -55,6 +67,10 @@ export interface IRegistrationDocument extends Document {
   paymentStatus: "PENDING" | "VERIFIED" | "REJECTED";
   registrationStatus: "PENDING" | "CONFIRMED" | "REJECTED";
   score: number;
+  scoreBreakdown?: ScoreBreakdown;
+  finalScore?: number;
+  finalScoreBreakdown?: ScoreBreakdown;
+  isFinalist?: boolean;
   editLogs: { timestamp: Date; editedBy: string; changes: string }[];
   createdAt: Date;
   updatedAt: Date;
@@ -100,6 +116,28 @@ const RegistrationSchema = new Schema<IRegistrationDocument>(
       type: Number,
       default: 0,
     },
+    scoreBreakdown: {
+      ppt: { type: Number, default: 0 },
+      presentation: { type: Number, default: 0 },
+      prototype: { type: Number, default: 0 },
+      simulation: { type: Number, default: 0 },
+      qa: { type: Number, default: 0 },
+    },
+    finalScore: {
+      type: Number,
+      default: 0,
+    },
+    finalScoreBreakdown: {
+      ppt: { type: Number, default: 0 },
+      presentation: { type: Number, default: 0 },
+      prototype: { type: Number, default: 0 },
+      simulation: { type: Number, default: 0 },
+      qa: { type: Number, default: 0 },
+    },
+    isFinalist: {
+      type: Boolean,
+      default: false,
+    },
     editLogs: {
       type: [
         {
@@ -113,6 +151,7 @@ const RegistrationSchema = new Schema<IRegistrationDocument>(
   },
   {
     timestamps: true,
+    strict: false,
   }
 );
 
@@ -127,14 +166,50 @@ const SystemSettingsSchema = new Schema<ISystemSettingsDocument>({
   value: { type: Schema.Types.Mixed, required: true },
 });
 
+export interface JudgeItem {
+  name: string;
+}
+
+export interface JudgePanelRecord {
+  id: string;
+  panelName: string;
+  passkey: string;
+  judges: JudgeItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IJudgePanelDocument extends Document {
+  panelName: string;
+  passkey: string;
+  judges: { name: string }[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const JudgePanelSchema = new Schema<IJudgePanelDocument>(
+  {
+    panelName: { type: String, required: true, trim: true },
+    passkey: { type: String, required: true, unique: true, trim: true, index: true },
+    judges: [
+      {
+        name: { type: String, required: true, trim: true },
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
 let Registration: Model<IRegistrationDocument>;
 let SystemSettings: Model<ISystemSettingsDocument>;
+let JudgePanel: Model<IJudgePanelDocument>;
 
 if (mongoose.models.Registration) {
-  Registration = mongoose.model<IRegistrationDocument>("Registration");
-} else {
-  Registration = mongoose.model<IRegistrationDocument>("Registration", RegistrationSchema);
+  delete (mongoose.models as any).Registration;
 }
+Registration = mongoose.model<IRegistrationDocument>("Registration", RegistrationSchema);
 
 if (mongoose.models.SystemSettings) {
   SystemSettings = mongoose.model<ISystemSettingsDocument>("SystemSettings");
@@ -142,7 +217,13 @@ if (mongoose.models.SystemSettings) {
   SystemSettings = mongoose.model<ISystemSettingsDocument>("SystemSettings", SystemSettingsSchema);
 }
 
-export { Registration, SystemSettings };
+if (mongoose.models.JudgePanel) {
+  JudgePanel = mongoose.model<IJudgePanelDocument>("JudgePanel");
+} else {
+  JudgePanel = mongoose.model<IJudgePanelDocument>("JudgePanel", JudgePanelSchema);
+}
+
+export { Registration, SystemSettings, JudgePanel };
 
 const RegistrationModel = Registration;
 
@@ -223,6 +304,26 @@ function docToRecord(doc: IRegistrationDocument | null): RegistrationRecord | nu
     paymentStatus: doc.paymentStatus,
     registrationStatus: doc.registrationStatus,
     score: doc.score ?? 0,
+    scoreBreakdown: doc.scoreBreakdown
+      ? {
+          ppt: doc.scoreBreakdown.ppt ?? 0,
+          presentation: doc.scoreBreakdown.presentation ?? 0,
+          prototype: doc.scoreBreakdown.prototype ?? 0,
+          simulation: doc.scoreBreakdown.simulation ?? 0,
+          qa: doc.scoreBreakdown.qa ?? 0,
+        }
+      : undefined,
+    finalScore: doc.finalScore ?? 0,
+    finalScoreBreakdown: doc.finalScoreBreakdown
+      ? {
+          ppt: doc.finalScoreBreakdown.ppt ?? 0,
+          presentation: doc.finalScoreBreakdown.presentation ?? 0,
+          prototype: doc.finalScoreBreakdown.prototype ?? 0,
+          simulation: doc.finalScoreBreakdown.simulation ?? 0,
+          qa: doc.finalScoreBreakdown.qa ?? 0,
+        }
+      : undefined,
+    isFinalist: doc.isFinalist ?? false,
     editLogs: doc.editLogs ? doc.editLogs.map((log: any) => ({
       timestamp: log.timestamp ? new Date(log.timestamp).toISOString() : new Date().toISOString(),
       editedBy: log.editedBy,
@@ -399,4 +500,62 @@ export async function getRegistrationStats(): Promise<{
   ]);
 
   return { total, pending, confirmed, rejected };
+}
+
+function judgePanelDocToRecord(doc: IJudgePanelDocument | null): JudgePanelRecord | null {
+  if (!doc) return null;
+  return {
+    id: doc._id.toString(),
+    panelName: doc.panelName,
+    passkey: doc.passkey,
+    judges: (doc.judges || []).map((j: any) => ({ name: typeof j === "string" ? j : j.name })),
+    createdAt: doc.createdAt ? doc.createdAt.toISOString() : new Date().toISOString(),
+    updatedAt: doc.updatedAt ? doc.updatedAt.toISOString() : new Date().toISOString(),
+  };
+}
+
+export async function getAllJudgePanels(): Promise<JudgePanelRecord[]> {
+  await connectToDatabase();
+  const docs = await JudgePanel.find().sort({ createdAt: -1 }).exec();
+  return docs.map((doc) => judgePanelDocToRecord(doc)!);
+}
+
+export async function getJudgePanelByPasskey(passkey: string): Promise<JudgePanelRecord | null> {
+  await connectToDatabase();
+  const doc = await JudgePanel.findOne({ passkey: passkey.trim() }).exec();
+  return judgePanelDocToRecord(doc);
+}
+
+export async function createJudgePanel(data: {
+  panelName: string;
+  passkey: string;
+  judges: { name: string }[];
+}): Promise<JudgePanelRecord> {
+  await connectToDatabase();
+  const created = await JudgePanel.create({
+    panelName: data.panelName.trim(),
+    passkey: data.passkey.trim(),
+    judges: data.judges,
+  });
+  return judgePanelDocToRecord(created)!;
+}
+
+export async function updateJudgePanel(
+  id: string,
+  data: Partial<{ panelName: string; passkey: string; judges: { name: string }[] }>
+): Promise<JudgePanelRecord | null> {
+  await connectToDatabase();
+  const updateData: any = {};
+  if (data.panelName !== undefined) updateData.panelName = data.panelName.trim();
+  if (data.passkey !== undefined) updateData.passkey = data.passkey.trim();
+  if (data.judges !== undefined) updateData.judges = data.judges;
+
+  const updated = await JudgePanel.findByIdAndUpdate(id, updateData, { new: true }).exec();
+  return judgePanelDocToRecord(updated);
+}
+
+export async function deleteJudgePanel(id: string): Promise<boolean> {
+  await connectToDatabase();
+  const res = await JudgePanel.findByIdAndDelete(id).exec();
+  return !!res;
 }

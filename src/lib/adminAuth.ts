@@ -24,7 +24,7 @@ export function getAdminRole(request: NextRequest): AdminRole {
   if (!password) return null;
 
   const superPassword = process.env.SUPER_ADMIN_PASS || "admin_rc@2026";
-  const readonlyPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const readonlyPassword = process.env.ADMIN_PASSWORD || "embedx_admin@2026";
 
   if (password === superPassword) return "super";
   if (password === readonlyPassword) return "readonly";

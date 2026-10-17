@@ -48,6 +48,37 @@ export async function POST(request: NextRequest) {
       { upsert: true, new: true }
     );
 
+    if (key === "finalRoundActive" && value === true) {
+      const { Registration } = await import("@/lib/db");
+      const initialTeams = await Registration.find({
+        $or: [
+          { paymentStatus: "VERIFIED" },
+          { registrationStatus: "CONFIRMED" },
+          { score: { $gt: 0 } },
+        ],
+      })
+        .sort({ score: -1, teamName: 1 })
+        .lean();
+
+      const top20 = initialTeams.slice(0, 20);
+      const top20Ids = top20.map((t: any) => t._id);
+
+      await Registration.updateMany(
+        { _id: { $in: top20Ids } },
+        { $set: { isFinalist: true } }
+      );
+
+      await Registration.updateMany(
+        { _id: { $in: top20Ids }, finalScore: { $exists: false } },
+        { $set: { finalScore: 0 } }
+      );
+
+      await Registration.updateMany(
+        { _id: { $nin: top20Ids } },
+        { $set: { isFinalist: false } }
+      );
+    }
+
     return NextResponse.json({ success: true, message: "Setting updated" });
   } catch (err) {
     return NextResponse.json({ success: false, error: "Update failed" }, { status: 500 });
